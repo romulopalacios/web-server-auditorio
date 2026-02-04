@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración | Sistema TI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="user-info">
+            <div class="admin-badge">
+                <span class="admin-icon">⚙️</span>
+                {{ usuario }}
+            </div>
+            <span class="page-title">Panel de Administración</span>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <a href="{{ url_for('index') }}" class="btn-back">Volver al Dashboard</a>
+            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar Sesión</a>
+        </div>
+    </div>
+
+    <!-- Contenedor Principal -->
+    <div class="admin-container">
+        
+        <!-- Tarjetas de Estadísticas -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-info">
+                    <h3 id="total-logs">0</h3>
+                    <span>Total Logs</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-info">
+                    <h3 id="usuarios-activos">0</h3>
+                    <span>Usuarios Activos</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔄</div>
+                <div class="stat-info">
+                    <h3 id="cambios-hoy">0</h3>
+                    <span>Cambios Hoy</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-info">
+                    <h3 id="errores-total">0</h3>
+                    <span>Errores</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs de Navegación -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="cambiarTab('usuarios')">Usuarios</button>
+            <button class="tab-btn" onclick="cambiarTab('logs')">Gestión de Logs</button>
+            <button class="tab-btn" onclick="cambiarTab('analiticas')">Analíticas</button>
+            <button class="tab-btn" onclick="cambiarTab('config')">Configuración</button>
+        </div>
+
+        <!-- Tab: Gestión de Usuarios -->
+        <div id="tab-usuarios" class="tab-content active">
+            <div class="section-header">
+                <h2>Gestión de Usuarios</h2>
+                <button class="btn-primary" onclick="mostrarModalUsuario()">Nuevo Usuario</button>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th>Rol</th>
+                            <th>Estado</th>
+                            <th>Último Acceso</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-usuarios">
+                        <tr><td colspan="8" class="loading">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Gestión de Logs -->
+        <div id="tab-logs" class="tab-content">
+            <div class="section-header">
+                <h2>Búsqueda y Gestión de Logs</h2>
+                <button class="btn-danger" onclick="mostrarModalLimpiarLogs()">Limpiar Logs Antiguos</button>
+            </div>
+            
+            <div class="filtros-panel">
+                <input type="text" id="filtro-usuario" placeholder="Usuario">
+                <select id="filtro-nivel">
+                    <option value="">Todos los niveles</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARNING">WARNING</option>
+                    <option value="ERROR">ERROR</option>
+                </select>
+                <input type="date" id="filtro-fecha-desde" placeholder="Desde">
+                <input type="date" id="filtro-fecha-hasta" placeholder="Hasta">
+                <button class="btn-primary" onclick="buscarLogs()">Buscar</button>
+                <button class="btn-secondary" onclick="exportarLogs()">Exportar CSV</button>
+            </div>
+            
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Nivel</th>
+                            <th>Usuario</th>
+                            <th>Evento</th>
+                            <th>Detalles</th>
+                            <th>IP</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-logs">
+                        <tr><td colspan="6" class="loading">Use los filtros para buscar</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tab: Analíticas -->
+        <div id="tab-analiticas" class="tab-content">
+            <h2>Analíticas y Reportes</h2>
+            
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <h3>Usuarios Más Activos</h3>
+                    <div id="chart-usuarios" class="chart-container">
+                        <canvas id="canvas-usuarios"></canvas>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <h3>Uso del Auditorio por Modo</h3>
+                    <div id="chart-eventos-dia" class="chart-container">
+                        <canvas id="canvas-eventos"></canvas>
+                    </div>
+                </div>
+                
+                <div class="analytics-card full-width">
+                    <h3>Timeline de Cambios de Modo</h3>
+                    <div id="timeline-modos" class="timeline-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Configuración -->
+        <div id="tab-config" class="tab-content">
+            <div class="section-header">
+                <h2>Configuración del Sistema</h2>
+            </div>
+            
+            <div class="config-grid" id="config-grid">
+                <div class="loading">Cargando configuraciones...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal: Nuevo/Editar Usuario -->
+    <div id="modal-usuario" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-usuario-titulo">Nuevo Usuario</h2>
+            <form id="form-usuario" onsubmit="guardarUsuario(event)">
+                <input type="hidden" id="usuario-id">
+                
+                <div class="form-group">
+                    <label>Usuario *</label>
+                    <input type="text" id="usuario-username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Contraseña *</label>
+                    <input type="password" id="usuario-password" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="usuario-nombre">
+                </div>
+                
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="usuario-email">
+                </div>
+                
+                <div class="form-group">
+                    <label>Rol</label>
+                    <select id="usuario-rol">
+                        <option value="operador">Operador</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="cerrarModalUsuario()">Cancelar</button>
+                    <button type="submit" class="btn-confirm">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Limpiar Logs -->
+    <div id="modal-limpiar-logs" class="modal">
+        <div class="modal-content">
+            <h2>Limpiar Logs Antiguos</h2>
+            <p>Esta acción eliminará todos los registros anteriores a la cantidad de días especificada.</p>
+            <div class="form-group">
+                <label>Días a mantener:</label>
+                <input type="number" id="dias-mantener" value="30" min="1" max="365">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="cerrarModalLimpiarLogs()">Cancelar</button>
+                <button class="btn-danger" onclick="ejecutarLimpiezaLogs()">Confirmar Limpieza</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>

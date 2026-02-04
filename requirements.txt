@@ -1,0 +1,20 @@
+# Dependencias del Sistema de Control de Auditorio
+# Instalación: pip install -r requirements.txt
+
+# Framework Web
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Extensiones de Seguridad
+Flask-Login==0.6.3
+Flask-Limiter==3.5.0
+
+# Validación de Datos
+email-validator==2.1.0
+
+# Utilidades
+python-dotenv==1.0.0
+
+# Testing (Opcional para desarrollo)
+pytest==7.4.3
+pytest-flask==1.3.0
