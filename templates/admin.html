@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Administración | Sistema TI</title>
+    <meta name="description" content="Panel administrativo del Sistema de Control de Auditorio">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 </head>
 <body>
     <!-- Header -->
-    <div class="header">
+    <header class="header" role="banner">
         <div class="user-info">
             <div class="admin-badge">
                 <span class="admin-icon">⚙️</span>
@@ -17,16 +18,16 @@
             <span class="page-title">Panel de Administración</span>
         </div>
         <div style="display: flex; gap: 12px;">
-            <a href="{{ url_for('index') }}" class="btn-back">Volver al Dashboard</a>
-            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar Sesión</a>
+            <a href="{{ url_for('index') }}" class="btn-back" aria-label="Volver al panel principal">Volver al Dashboard</a>
+            <a href="{{ url_for('logout') }}" class="btn-logout" aria-label="Cerrar sesión">Cerrar Sesión</a>
         </div>
-    </div>
+    </header>
 
     <!-- Contenedor Principal -->
-    <div class="admin-container">
+    <main class="admin-container" role="main" aria-label="Panel de administración">
         
         <!-- Tarjetas de Estadísticas -->
-        <div class="stats-grid">
+        <section class="stats-grid" aria-label="Estadísticas generales del sistema">
             <div class="stat-card">
                 <div class="stat-icon">📊</div>
                 <div class="stat-info">
@@ -55,10 +56,10 @@
                     <span>Errores</span>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Tabs de Navegación -->
-        <div class="tabs">
+        <nav class="tabs" role="tablist" aria-label="Navegación del panel de administración">
             <button class="tab-btn active" onclick="cambiarTab('usuarios')">Usuarios</button>
             <button class="tab-btn" onclick="cambiarTab('logs')">Gestión de Logs</button>
             <button class="tab-btn" onclick="cambiarTab('analiticas')">Analíticas</button>
@@ -91,10 +92,10 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
 
         <!-- Tab: Gestión de Logs -->
-        <div id="tab-logs" class="tab-content">
+        <section id="tab-logs" class="tab-content" role="tabpanel" aria-labelledby="Gestión de logs">
             <div class="section-header">
                 <h2>Búsqueda y Gestión de Logs</h2>
                 <button class="btn-danger" onclick="mostrarModalLimpiarLogs()">Limpiar Logs Antiguos</button>
@@ -131,10 +132,10 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
 
         <!-- Tab: Analíticas -->
-        <div id="tab-analiticas" class="tab-content">
+        <section id="tab-analiticas" class="tab-content" role="tabpanel" aria-labelledby="Analíticas y reportes">
             <h2>Analíticas y Reportes</h2>
             
             <div class="analytics-grid">
@@ -157,10 +158,10 @@
                     <div id="timeline-modos" class="timeline-container"></div>
                 </div>
             </div>
-        </div>
+        </section>
 
         <!-- Tab: Configuración -->
-        <div id="tab-config" class="tab-content">
+        <section id="tab-config" class="tab-content" role="tabpanel" aria-labelledby="Configuración del sistema">
             <div class="section-header">
                 <h2>Configuración del Sistema</h2>
             </div>
@@ -168,12 +169,12 @@
             <div class="config-grid" id="config-grid">
                 <div class="loading">Cargando configuraciones...</div>
             </div>
-        </div>
+        </section>
 
-    </div>
+    </main>
 
     <!-- Modal: Nuevo/Editar Usuario -->
-    <div id="modal-usuario" class="modal">
+    <div id="modal-usuario" class="modal" role="dialog" aria-labelledby="modal-usuario-titulo" aria-modal="true">
         <div class="modal-content">
             <h2 id="modal-usuario-titulo">Nuevo Usuario</h2>
             <form id="form-usuario" onsubmit="guardarUsuario(event)">
@@ -216,10 +217,10 @@
     </div>
 
     <!-- Modal: Limpiar Logs -->
-    <div id="modal-limpiar-logs" class="modal">
+    <div id="modal-limpiar-logs" class="modal" role="dialog" aria-labelledby="modal-limpiar-titulo" aria-describedby="modal-limpiar-desc" aria-modal="true">
         <div class="modal-content">
-            <h2>Limpiar Logs Antiguos</h2>
-            <p>Esta acción eliminará todos los registros anteriores a la cantidad de días especificada.</p>
+            <h2 id="modal-limpiar-titulo">Limpiar Logs Antiguos</h2>
+            <p id="modal-limpiar-desc">Esta acción eliminará todos los registros anteriores a la cantidad de días especificada.</p>
             <div class="form-group">
                 <label>Días a mantener:</label>
                 <input type="number" id="dias-mantener" value="30" min="1" max="365">

@@ -18,7 +18,3 @@ python-dotenv==1.0.0
 # Testing (Opcional para desarrollo)
 pytest==7.4.3
 pytest-flask==1.3.0
-pytest-cov==4.1.0
-
-# Coverage para análisis de cobertura de tests
-coverage==7.3.2

@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel de Control | Ingeniería TI v2.0</title>
+    <meta name="description" content="Sistema de Control Distribuido de Auditorio - Panel de operación">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
 <body>
     <!-- Header con información del usuario -->
-    <div class="header">
+    <header class="header" role="banner">
         <div class="user-info">
             <div class="user-badge">
                 <span class="status-indicator online"></span>
@@ -20,16 +21,16 @@
             {% if current_user.username == 'admin' %}
             <a href="{{ url_for('admin_panel') }}" class="btn-admin">Panel Admin</a>
             {% endif %}
-            <a href="{{ url_for('logout') }}" class="btn-logout">Cerrar Sesión</a>
+            <a href="{{ url_for('logout') }}" class="btn-logout" aria-label="Cerrar sesión del sistema">Cerrar Sesión</a>
         </div>
-    </div>
+    </header>
     
     <!-- Dashboard Principal -->
-    <div class="dashboard">
+    <main class="dashboard" role="main" aria-label="Panel de control principal">
         <h1>Sistema de <span class="accent">Control Distribuido</span></h1>
         
         <!-- KPIs del Sistema -->
-        <div class="monitor">
+        <section class="monitor" aria-label="Indicadores de estado del sistema">
             <div class="kpi" id="kpi-estado">
                 <h2 id="modo-val">STANDBY</h2>
                 <span>Estado Actual</span>
@@ -42,36 +43,38 @@
                 <h2 id="latencia-val">0ms</h2>
                 <span>Latencia</span>
             </div>
-        </div>
+        </section>
 
         <!-- Botones de Control -->
-        <div class="botones">
-            <button class="btn-voz" onclick="enviarComando('CONFERENCIA', this)">
+        <nav class="botones" role="navigation" aria-label="Controles de modo del sistema">
+            <button class="btn-voz" onclick="enviarComando('CONFERENCIA', this)" aria-label="Activar modo conferencia">
                 Modo Conferencia
             </button>
-            <button class="btn-cine" onclick="enviarComando('CINE', this)">
+            <button class="btn-cine" onclick="enviarComando('CINE', this)" aria-label="Activar modo cine">
                 Modo Cine
             </button>
-            <button class="btn-off" onclick="confirmarApagado(this)">
+            <button class="btn-off" onclick="confirmarApagado(this)" aria-label="Apagar sistema de audio">
                 Apagar Sistema
             </button>
-        </div>
+        </nav>
 
         <!-- Consola de Logs -->
-        <h3 style="margin: 28px 0 12px 0; color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; text-transform: uppercase;">
-            Registro de Eventos
-        </h3>
-        <div class="consola" id="log-box">
-            <div class="log-row INFO">Cargando eventos...</div>
-        </div>
-    </div>
+        <section aria-label="Historial de eventos del sistema">
+            <h3 style="margin: 28px 0 12px 0; color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; text-transform: uppercase;">
+                Registro de Eventos
+            </h3>
+            <div class="consola" id="log-box" role="log" aria-live="polite" aria-atomic="false">
+                <div class="log-row INFO">Cargando eventos...</div>
+            </div>
+        </section>
+    </main>
     
     <!-- Modal de Confirmación -->
-    <div id="modal-confirm" class="modal">
+    <div id="modal-confirm" class="modal" role="dialog" aria-labelledby="modal-title" aria-describedby="modal-desc" aria-modal="true">
         <div class="modal-content">
-            <h2>Confirmación requerida</h2>
-            <p>¿Está seguro que desea apagar el sistema?</p>
-            <p style="font-size: 0.875rem; margin-top: 8px;">
+            <h2 id="modal-title">Confirmación requerida</h2>
+            <p id="modal-desc">¿Está seguro que desea apagar el sistema?</p>
+            <p style="font-size: 0.875rem; margin-top: 8px; color: var(--text-secondary);">
                 Esta acción detendrá todos los servicios activos.
             </p>
             <div class="modal-buttons">

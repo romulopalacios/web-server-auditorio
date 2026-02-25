@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | Sistema de Control</title>
+    <meta name="description" content="Iniciar sesión en el Sistema de Control de Auditorio">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
 </head>
 <body>
-    <div class="login-container">
+    <main class="login-container" role="main" aria-label="Formulario de inicio de sesión">
         <div class="logo">
             <h1>Sistema de <span class="accent">Control</span></h1>
             <p>Auditorio Leo Cedeño Sanchez</p>
@@ -36,12 +37,12 @@
                        autocomplete="current-password">
             </div>
 
-            <button type="submit" class="btn-login" id="btnLogin">
+            <button type="submit" class="btn-login" id="btnLogin" aria-label="Enviar formulario de inicio de sesión">
                 Iniciar Sesión
             </button>
         </form>
 
-    </div>
+    </main>
 
     <script src="{{ url_for('static', filename='js/login.js') }}"></script>
 </body>
