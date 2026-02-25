@@ -1,12 +1,14 @@
 """
 Capa de Persistencia - DatabaseManager
-Arquitectura: Repository Pattern con manejo robusto de excepciones
+Arquitectura: Repository Pattern con manejo robusto de excepciones y Connection Pooling
 """
 import sqlite3
 import datetime
 import os
 import logging
+import threading
 from typing import Optional, List, Dict, Tuple
+from contextlib import contextmanager
 
 # Configuración de logging
 logger = logging.getLogger(__name__)
@@ -14,13 +16,32 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     """
     Gestiona todas las operaciones de persistencia del sistema.
-    Implementa patrón Repository para aislar la lógica de acceso a datos.
+    Implementa patrón Repository con Connection Pooling para aislar la lógica de acceso a datos.
+    Thread-safe con locks para operaciones concurrentes.
     """
     
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls, db_path: str = "database/auditorio.db"):
+        """Implementación de Singleton thread-safe"""
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(DatabaseManager, cls).__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self, db_path: str = "database/auditorio.db"):
+        """Inicializa el gestor de base de datos con connection pooling"""
+        if self._initialized:
+            return
+            
         self.db_path = db_path
+        self._local = threading.local()
         self._verificar_carpeta()
         self._inicializar_tablas()
+        self._initialized = True
         logger.info(f"DatabaseManager inicializado: {db_path}")
 
     def _verificar_carpeta(self) -> None:
@@ -29,6 +50,78 @@ class DatabaseManager:
         if carpeta and not os.path.exists(carpeta):
             os.makedirs(carpeta)
             logger.info(f"Carpeta creada: {carpeta}")
+    
+    @contextmanager
+    def _get_connection(self):
+        """
+        Context manager para obtener conexión thread-safe.
+        Cada thread obtiene su propia conexión desde el thread-local storage.
+        """
+        if not hasattr(self._local, 'connection') or self._local.connection is None:
+            self._local.connection = sqlite3.connect(
+                self.db_path,
+                check_same_thread=False,
+                timeout=30.0
+            )
+            self._local.connection.row_factory = sqlite3.Row
+            # Habilitar WAL mode para mejor concurrencia
+            self._local.connection.execute("PRAGMA journal_mode=WAL")
+            self._local.connection.execute("PRAGMA synchronous=NORMAL")
+            
+        try:
+            yield self._local.connection
+        except Exception as e:
+            self._local.connection.rollback()
+            logger.error(f"Error en transacción de BD: {e}")
+            raise
+        else:
+            self._local.connection.commit()
+    
+    def close_connection(self):
+        """Cierra la conexión del thread actual"""
+        if hasattr(self._local, 'connection') and self._local.connection:
+            self._local.connection.close()
+            self._local.connection = None
+            logger.debug("Conexión cerrada para el thread actual")
+    
+    def health_check(self) -> Dict[str, any]:
+        """
+        Verifica el estado de salud de la base de datos.
+        
+        Returns:
+            Diccionario con información del estado de la BD
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Verificar integridad
+                cursor.execute("PRAGMA integrity_check")
+                integrity = cursor.fetchone()[0]
+                
+                # Tamaño de BD
+                db_size = os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0
+                
+                # Conteo de tablas
+                cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
+                num_tables = cursor.fetchone()[0]
+                
+                # Total de registros en logs
+                cursor.execute("SELECT COUNT(*) FROM logs_auditoria")
+                total_logs = cursor.fetchone()[0]
+                
+                return {
+                    'status': 'healthy' if integrity == 'ok' else 'error',
+                    'integrity': integrity,
+                    'db_size_bytes': db_size,
+                    'db_size_mb': round(db_size / (1024 * 1024), 2),
+                    'num_tables': num_tables,
+                    'total_logs': total_logs,
+                    'db_path': self.db_path
+                }
+        except Exception as e:
+            logger.error(f"Error en health_check: {e}")
+            return {'status': 'error', 'error': str(e)}
 
     def _inicializar_tablas(self) -> None:
         """
@@ -36,7 +129,7 @@ class DatabaseManager:
         Incluye tabla de auditoría mejorada y tabla de estado del sistema.
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
                 # Tabla de auditoría mejorada
@@ -181,7 +274,6 @@ class DatabaseManager:
                     ON configuraciones(categoria)
                 ''')
                 
-                conn.commit()
                 logger.info("Estructura de base de datos inicializada correctamente")
                 
         except sqlite3.Error as e:
@@ -216,7 +308,7 @@ class DatabaseManager:
             True si se registró correctamente, False en caso de error
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
@@ -228,7 +320,6 @@ class DatabaseManager:
                 ''', (now, nivel, usuario, evento, estado_previo, estado_nuevo, 
                       detalles, ip, user_agent))
                 
-                conn.commit()
                 logger.debug(f"Evento registrado: {evento} por {usuario or 'anónimo'}")
                 return True
                 
@@ -247,7 +338,7 @@ class DatabaseManager:
             Lista de tuplas con los logs ordenados por fecha descendente
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT id, fecha, nivel, usuario, evento, detalles, origen_ip
@@ -266,8 +357,7 @@ class DatabaseManager:
     def obtener_todos_usuarios(self) -> List[Dict]:
         """Obtiene todos los usuarios del sistema"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT id, username, rol, nombre_completo, email, activo, 
@@ -284,13 +374,12 @@ class DatabaseManager:
                      nombre_completo: str = None, email: str = None) -> bool:
         """Crea un nuevo usuario"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT INTO usuarios (username, password_hash, rol, nombre_completo, email)
                     VALUES (?, ?, ?, ?, ?)
                 ''', (username, password_hash, rol, nombre_completo, email))
-                conn.commit()
                 logger.info(f"Usuario creado: {username}")
                 return True
         except sqlite3.Error as e:
@@ -300,14 +389,13 @@ class DatabaseManager:
     def actualizar_usuario(self, user_id: int, datos: Dict) -> bool:
         """Actualiza datos de un usuario"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 campos = ', '.join([f"{k} = ?" for k in datos.keys()])
                 valores = list(datos.values()) + [user_id]
                 cursor.execute(f'''
                     UPDATE usuarios SET {campos} WHERE id = ?
                 ''', valores)
-                conn.commit()
                 logger.info(f"Usuario actualizado: ID {user_id}")
                 return True
         except sqlite3.Error as e:
@@ -317,10 +405,9 @@ class DatabaseManager:
     def eliminar_usuario(self, user_id: int) -> bool:
         """Elimina (desactiva) un usuario"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("UPDATE usuarios SET activo = 0 WHERE id = ?", (user_id,))
-                conn.commit()
                 logger.info(f"Usuario desactivado: ID {user_id}")
                 return True
         except sqlite3.Error as e:
@@ -330,8 +417,7 @@ class DatabaseManager:
     def buscar_logs(self, filtros: Dict, limite: int = 50) -> List[Dict]:
         """Busca logs con filtros avanzados"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
                 query = "SELECT * FROM logs_auditoria WHERE 1=1"
@@ -369,7 +455,7 @@ class DatabaseManager:
     def eliminar_logs_antiguos(self, dias: int = 30) -> int:
         """Elimina logs más antiguos que X días"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 fecha_limite = datetime.datetime.now() - datetime.timedelta(days=dias)
                 cursor.execute('''
@@ -377,7 +463,6 @@ class DatabaseManager:
                     WHERE fecha < ?
                 ''', (fecha_limite.strftime('%Y-%m-%d %H:%M:%S'),))
                 eliminados = cursor.rowcount
-                conn.commit()
                 logger.info(f"Logs eliminados: {eliminados}")
                 return eliminados
         except sqlite3.Error as e:
@@ -389,7 +474,7 @@ class DatabaseManager:
     def obtener_estadisticas_generales(self) -> Dict:
         """Obtiene estadísticas generales del sistema"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
                 # Total de logs
@@ -430,8 +515,7 @@ class DatabaseManager:
     def obtener_actividad_por_usuario(self, limite: int = 10) -> List[Dict]:
         """Obtiene usuarios más activos"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT usuario, COUNT(*) as total_acciones,
@@ -450,8 +534,7 @@ class DatabaseManager:
     def obtener_eventos_por_dia(self, dias: int = 7) -> List[Dict]:
         """Obtiene eventos agrupados por día"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT DATE(fecha) as dia, COUNT(*) as total_eventos,
@@ -470,8 +553,7 @@ class DatabaseManager:
     def obtener_cambios_modo_timeline(self, limite: int = 20) -> List[Dict]:
         """Obtiene historial de cambios de modo"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT fecha, usuario, estado_previo, estado_nuevo, detalles
@@ -488,8 +570,7 @@ class DatabaseManager:
     def obtener_uso_por_modo(self) -> List[Dict]:
         """Obtiene estadísticas de uso por modo del auditorio"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT estado_nuevo as modo, COUNT(*) as total_usos,
@@ -509,8 +590,7 @@ class DatabaseManager:
     def obtener_configuraciones(self, categoria: str = None) -> List[Dict]:
         """Obtiene configuraciones del sistema"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
                 if categoria:
@@ -530,14 +610,13 @@ class DatabaseManager:
     def actualizar_configuracion(self, clave: str, valor: str, usuario: str = None) -> bool:
         """Actualiza una configuración"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     UPDATE configuraciones 
                     SET valor = ?, actualizado = CURRENT_TIMESTAMP, actualizado_por = ?
                     WHERE clave = ?
                 ''', (valor, usuario, clave))
-                conn.commit()
                 logger.info(f"Configuración actualizada: {clave} = {valor}")
                 return True
         except sqlite3.Error as e:
@@ -554,7 +633,7 @@ class DatabaseManager:
             Diccionario con el estado completo del sistema
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT clave, valor FROM estado_sistema")
                 return dict(cursor.fetchall())
@@ -579,7 +658,7 @@ class DatabaseManager:
             True si se actualizó correctamente
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
@@ -592,7 +671,6 @@ class DatabaseManager:
                             actualizado = excluded.actualizado
                     ''', (clave, valor, now))
                 
-                conn.commit()
                 logger.debug(f"Estado actualizado: {list(estado.keys())}")
                 return True
                 
@@ -608,7 +686,7 @@ class DatabaseManager:
             Diccionario con métricas del sistema
         """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self._get_connection() as conn:
                 cursor = conn.cursor()
                 
                 # Total de eventos
